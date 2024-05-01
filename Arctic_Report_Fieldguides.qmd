@@ -1,0 +1,210 @@
+---
+title: "The Canadian Arctic Vegetation Archive and Classification"
+subtitle: "Fieldguides for the Canadian Arctic Ecosystem Classification"
+author: "William H MacKenzie"
+execute:
+  echo: false
+  warning: false
+  error: false
+  cache: false
+  message: false
+format: PrettyPDF-pdf
+  #pdf:
+    #fig-pos: H
+    #documentclass: scrartcl
+    #papersize: letter
+editor: visual
+header-includes:
+ \usepackage{booktabs}
+ \usepackage{longtable}
+ \usepackage{array}
+ \usepackage{multirow}
+ \usepackage[table]{xcolor}
+ \usepackage{wrapfig}
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+```{r packages}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+require(tidyverse)
+require(DBI) #loads odbc as well
+require(data.table)
+require(devtools)
+require(knitr)
+require(sf)
+require(ggmap)
+require(mapview)
+require(mapdeck)
+require(leaflet)
+require(RColorBrewer)
+require(colorspace)
+require(flextable)
+require(ggspatial)
+require(tidyterra)
+require(terra)
+library(stars)
+require(gt)
+```
+
+```{r import, include=FALSE}
+fg_area_sf <- st_read("./spatial_files/fieldguide_areas.gpkg")
+provinces <- vect("./spatial_files/CanadianProvinces.gpkg")
+# #proj.pnts <- plot_loc %>% filter(ProjectID == "Chidliak")
+# #  bc_bbox <- make_bbox(lat = Latitude, lon = Longitude, data = proj.pnts, f = c(10,2))
+# # bc_bbox
+# #  bc_big <- get_map(location = bc_bbox, source = "google", maptype = "terrain")
+# 
+#   #geom_point(data = plot_loc, mapping = aes(x = Longitude, y = Latitude))
+# 
+# ### read data from AVA-Canada db
+ becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2024.accdb;")
+# 
+plot.env <- dbReadTable(becmaster, "AVACanada2024_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
+# plot.admin <- dbReadTable(becmaster, "AVACanada2024_Admin")
+# plot.veg <- dbReadTable(becmaster, "AVACanada2024_Veg")
+# env.fields <- colnames(plot.env)
+# #odbc::odbcListColumns(becmaster, table = "BECMaster_fixing_ENV")
+dbDisconnect(becmaster)
+# 
+plot_loc <- as.data.frame(plot.env) %>%
+          dplyr::select(PlotNumber, ProjectID, Longitude, Latitude) %>%
+            drop_na() %>% filter(!Longitude == "0")
+plot_loc$Longitude <- as.numeric(plot_loc$Longitude)
+pnts_sf <- st_as_sf(plot_loc, coords=c("Longitude", "Latitude"), crs = 4326)
+# #pnts_terra <- vect(pnts_sf)
+pnts_fg <- st_join(fg_area_sf, pnts_sf)
+fg_plots <- as.data.frame(pnts_fg)
+
+fg_area <- fread("./input_data/FieldGuide_area.csv") %>% mutate(km2x1000 = area/1000000000) %>% mutate_if(is.numeric, round, 0) %>% select(FieldguideName, km2x1000)
+
+```
+
+# Proposed geographic areas for classification field guides.
+
+Distribution of ecosystems in the Canadian arctic are determined by several broad factors:
+
+1.  Biogeography: The available species pool to form ecosystems in the Canadian arctic differs across the country. East of the Mackenzie river, the Yukon arctic has many Beringian taxa not found elsewhere in Canada making many of these ecosystem distinctive. To a lesser extent the arctic east of Hudson Bay contains elements of the Greenlandic flora some which for dominant components of ecosystems in this area.
+
+2.  Geology: Species and ecosystem occuring on acidic parent material such as the Canadian Shield and the Batholith of eastern Baffin, Devon, and Ellesmere islands differ considerably from ecosystems occuring on calcareous or weakly acidic till found elsewhere in the arctic. These broad geologically distinct areas support very different ecosystem assemblages.
+
+3.  Climate: The Circum-polar Arctic Vegetation Map (CAVM) maps broad bioclimatic zones based on climatic temperature and vegetation stature supported by other metrics such as taxonomic diversity and presence/absence of genera and structural types. This classification does not account for ecosystem differentiation based on precipitation. While most of the central arctic is considered polar desert, increased mean annual preciption occurs in both the western and eastern arctic broadly affecting ecosystems.
+
+Based on the 3 factors outlined above we propose dividing the classification project into five classification project areas where preliminary data indicate that a common suite of factors lead to a common suite of related ecosystems. It is expected that the actual dimensions of field guides areas will be modified with additional data and field observations.
+
+![Broad geology of proposed fieldguide areas (red = acidic, green = calcareous)](images/Fieldguide_Areas.pdf){fig.pos="h"}
+
+
+### 1. Yukon Arctic
+
+A guide to this region has already been completed. MacKenzie and others' (2022) [Ecoystems of the Yukon Arctic region](https://www.researchgate.net/publication/378740254_Ecosystems_of_the_Yukon_Arctic_Region_a_guide_to_identification#fullTextFileContent) describes ecosites and biogeoclimatic zones for the primarily unglaciated Beringian area of the Canadian arctic occuring between the Alaska border and the Mackenzie river delta. This relatively small region (22,000 km^2^) is topographically, climatically,and geologically very complex so a high density of plots was required to build a comprehensive classification. Due to data quality challenges only about 1300 of the 2600 plots compiled for the region were used in the field guide classification.
+
+### 2. Arctic Archipelago 
+
+The largest field guide region (0.87 million km^2^) covers the western arctic archipelago largely underlain with calcareous substrates and low precipitation. CAVM subzone C and B dominate the region with northern edge of the D subzone occurring on the southern islands. Subzone A occurs in the NW and at high elevations from northern Victoria island and north. Extensive sampling for CHARS and by Dietbert Thannheiser possible provide sufficient sampling for classification of the D and C subzones of the region, though confirmation of the classifications applicability in unsampled regions is likely required. Additional sampling of the A and B subzones and more geographically extensive sampling should allow a full classification of the Region to be accomplished.
+
+### 3. Central Continental 
+
+Of nearly the same extent as the Archipelago region (0.82 million km^2^) the continental arctic region contrasts sharply from that region. The Continental arctic is largely underlain by Canadian Shield granites though significant portions are underlain by less acidic parent materials. The Region is predominantly CAVM subzone E and southern D, subzones that are likely to have higher ecosystem diversity relative to the more extreme arctic subzones. Most available data is from impact assessment mapping projects and of fair quality and there are large gaps in sample distribution.
+
+Extensive sampling may be required to adequately classify this region.
+
+### 4. Quebec-Labrador
+
+Quebec-Labrador is wetter than other portions of the Canadian arctic and has many floristic elements from the Greenlandic flora that can be dominant components of ecosystems in the region. Therefore both the floristic composition and distribution of ecosystems on the landscape are likely significantly different that similar areas to the west of Hudson Bay. It is possible that the eastern coastal areas of the Continental Region and the oceanic islands in Hudson Bay match the the Quebec-Labrador region but
+
+There are two extensive data sets that cover this region. The Parks Canada dataset for Torngats is fairly extensive but the area is topographically and climatically complex. No classification work has yet been attempted but is likley that a classification could be developed and tested with a short field session. The Quebec data set is fairly extensive and may adequately describe the more topographically homogenous region sufficiently. Classification of this region may be undertaken by the Quebec ministry of environment.
+
+### 5. Baffin-Ellesmere
+
+Baffin island and the SE coast of Ellesmere are topographically dramatic on the east coast and grading slowly to sea level on the western portions. The eastern portions are warmer and wetter due to oceanic influence. Most of the region is underlain by acidic igneous rock. The flora of Baffin includes elements of the Greenlandic flora
+
+## Ecosites by Field Guide area
+
+```{r fieldguide areas}
+#| label: map-plots
+#| fig-cap: "Distribution of plots in field guide areas "
+#| layout-ncol: 1
+ ggplot() +
+   geom_sf(data= fg_area_sf, aes(fill = FieldguideName))+
+   #geom_sf(data = provinces)+
+   geom_point(data=plot_loc, aes(x=Longitude, y = Latitude))+
+   xlab("Longitude") + ylab("Latitude") +
+   # ggtitle("Proposed Field Guide Areas")+#, subtitle = paste0("(", length(unique(fg_areas$Guide)), " guide areas)"))+
+   theme_bw()+
+   annotation_scale(width_hint = 0.5) +
+   annotation_north_arrow(location = "bl", which_north = "true", pad_x = unit(0.5, "in"), pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering)
+```
+
+```{r field guide plots available}
+#| label: plotsbyguide
+#| tbl-cap: "Number of available plots and region area for proposed fieldguide areas"
+#| tbl-cap-location: top
+#| out-width: "50%"
+
+
+fg_plots2 <- fg_plots %>% summarize(.by = FieldguideName, nplots=n()) %>% arrange(desc(nplots)) %>% left_join(fg_area)
+# fg_plots2 %>% tbl_summary(include = c(FieldguideName, area_000s_km2),by = FieldguideName)
+gt_tbl <- gt(fg_plots2)
+gt_tbl
+
+```
+
+## Yukon Arctic Region Guide and Ecosites
+![Cover page Ecosystems of the Yukon Arctic Region](images/Yukon_arctic_guide_cover.jpg){#fig-cover width="200"}
+
+### Example Field guide Layout
+
+![Example Ecosite description from the Yukon arctic guide](images/ExampleEcosite_YukonGuide.png){#fig-ecosite width="400"}
+
+```{r Yukon Units}
+#| label: yukon.units
+#| tbl-cap: "Ecosites by CAVM subzone in the Yukon Arctic Region"
+#| tbl-cap-location: top
+#| out-width: "50%"
+
+
+ casbecdb <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/CASBECdb_ver1_2024.accdb;")
+site.units <- dbReadTable(casbecdb, "tblCASBEC_SiteSeries_v1")
+dbDisconnect(casbecdb)
+
+yk.units <- site.units %>% filter(Guide_Region == "YK")
+yk.assocs <- unique(yk.units$Association_Code)
+yk.report <- site.units %>% filter(SubAssociation_Code %in% yk.assocs)%>% arrange(Realm, Class, Association_Code) %>% select(Class, Association_Code, SiteSeriesLongName, ArcC, ArcD, ArcE) 
+
+gt_tbl <- gt(yk.report)|> 
+  gt::tab_options(table.font.size = 9, data_row.padding = gt::px(1), 
+    summary_row.padding = gt::px(1), grand_summary_row.padding = gt::px(1), 
+    footnotes.padding = gt::px(1), source_notes.padding = gt::px(1), 
+    row_group.padding = gt::px(1))
+gt_tbl
+# gt.png <- gtsave(gt_tbl, "temp.png")
+# plot(gt.png)
+```
+
+
+```{r AA units}
+#| label: yukon.units
+#| tbl-cap: "Ecosites by CAVM subzone in the Arctic Archipelago"
+#| tbl-cap-location: top
+#| out-width: "50%"
+
+
+ casbecdb <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/CASBECdb_ver1_2024.accdb;")
+site.units <- dbReadTable(casbecdb, "tblCASBEC_SiteSeries_v1")
+dbDisconnect(casbecdb)
+
+yk.units <- site.units %>% filter(Guide_Region == "AA")
+yk.assocs <- unique(yk.units$Association_Code)
+yk.report <- site.units %>% filter(SubAssociation_Code %in% yk.assocs)%>% arrange(Realm, Class, Association_Code) %>% select(Class, Association_Code, SiteSeriesLongName, ArcC, ArcD, ArcE) 
+
+gt_tbl <- gt(yk.report)|> 
+  gt::tab_options(table.font.size = 9, data_row.padding = gt::px(1), 
+    summary_row.padding = gt::px(1), grand_summary_row.padding = gt::px(1), 
+    footnotes.padding = gt::px(1), source_notes.padding = gt::px(1), 
+    row_group.padding = gt::px(1))
+gt_tbl
+# gt.png <- gtsave(gt_tbl, "temp.png")
+# plot(gt.png)
+```

@@ -1,0 +1,165 @@
+---
+title: "AVA_Canada imports"
+author: "Will MacKenzie"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(tidyverse)
+require(DBI) #loads odbc as well
+require(data.table)
+require(devtools)
+require(knitr)
+require(stringr)
+require(sf)
+load_all("D:/GitHub/BECfixr")
+
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+sppmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/ArcticSpeciesInfo/NationalSpeciesLibrary.accdb;")
+taxon.all  <- dbReadTable(sppmaster, "USysAllSpecs_National")
+dbDisconnect(sppmaster)
+sppmaster <- taxon.all %>% filter(Codetype == "U") %>% dplyr::select(-ID) %>% as.data.table %>% mutate(Species = Code)
+taxon.lookup <- taxon.all %>% filter(Codetype == "U" | Codetype == "S" | Codetype == "D" ) %>% dplyr::select(-ID) %>% mutate(Species = Code) %>% as.data.table
+
+```
+
+#### Import all raw vpro tables in /raw_data folder
+```{r set folders, include=FALSE}
+ becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVA_Canada_2024.accdb;")
+
+plot.env <- dbReadTable(becmaster, "AVA_Canada_Master_new_Env") %>% mutate(Longitude = ifelse(Longitude>0, 0-Longitude, Longitude))
+plot.admin <- dbReadTable(becmaster, "AVA_Canada_Master_new_Admin")
+plot.veg <- dbReadTable(becmaster, "AVA_Canada_Master_new_Veg")
+env.fields <- colnames(plot.env)
+#odbc::odbcListColumns(becmaster, table = "BECMaster_fixing_ENV")
+dbDisconnect(becmaster)
+
+```
+
+
+```{r check locations}
+
+plot_loc <- as.data.frame(plot.env) %>% dplyr::select(PlotNumber, ProjectID, Longitude, Latitude) %>% drop_na() %>% filter(!Longitude == "0")
+plot_loc$Longitude <- as.numeric(plot_loc$Longitude) #  #  
+# plot_loc27 <- as.data.frame(plot.env)  %>% dplyr::select(PlotNumber, Longitude, Latitude, Date) %>% drop_na()  %>%  filter(Date <= as.Date("1995-01-01")) %>% dplyr::select(-Date)# %>% filter(PlotNumber == "PH 062") #  
+# plot_loc83 <- as.data.frame(plot.env)  %>% dplyr::select(PlotNumber, Longitude, Latitude, Date) %>% drop_na()  %>%  filter(Date > as.Date("1995-01-01")) %>% dplyr::select(-Date) # ###if pre GPS then transform from  NAD27 to NAD83 # # 
+# NAD83_proj <- CRS("+proj=longlat +datum=NAD83") # # 
+# NAD83_proj <- st_crs(4326) #  #  #  
+pnts_sf <- st_as_sf(plot_loc, coords=c("Longitude", "Latitude"), crs = 4326)
+
+   #pnts_sf <- st_transform(pnts_sf, crs = 3005)
+
+    mapview::mapView(pnts_sf,   cex = 8, legend = F, label = pnts_sf$ProjectID, zcol = "ProjectID",
+               #map.types = "Eri.WorldImagery")      
+           map.types = "OpenTopoMap")
+```
+
+```{r fix utm}
+plot.env$UTMZone <- as.numeric(plot.env$UTMZone)
+plot.env$UTMEasting <- as.numeric(plot.env$UTMEasting)
+plot.env$UTMNorthing <- as.numeric(plot.env$UTMNorthing)
+#plot.env %>% filter(PlotNumber == "KS04")
+
+plot.env$UTMEasting <- round(plot.env$UTMEasting,0) %>% as.character()
+plot.env$UTMEasting <-  str_trunc(plot.env$UTMEasting, 6, "right") %>% str_pad(6, side = "right", pad = "0")
+plot.env$UTMEasting <- gsub("[.]", "0",plot.env$UTMEasting) %>% as.numeric
+
+plot.env$UTMNorthing <- round(plot.env$UTMNorthing,0) %>% as.character()
+plot.env$UTMNorthing <- str_trunc(plot.env$UTMNorthing, 7, "right") %>% str_pad(7, side = "right",pad = "0")
+plot.env$UTMNorthing <- gsub("[.]", "0",plot.env$UTMNorthing) %>% as.numeric()
+
+plot_utm <- plot.env %>% dplyr::select(PlotNumber, UTMZone, UTMEasting, UTMNorthing) %>%  drop_na() %>% filter(!UTMEasting == 0)
+
+```
+Convert utm to lat longs. Need to run for each UTM zone in data
+```{r utm to latlong convert}
+
+##zone epsg (7 = 26907, 12 = 32612, 13 = 32613, 32619, 20 = 32620)
+plot_utm2 <- plot_utm %>% filter(UTMZone == 15) # %>% filter(str_detect(PlotNumber, "MAD"))
+plot_utm2 <- st_as_sf(plot_utm2, coords=c("UTMEasting", "UTMNorthing"), crs = 32615)
+plot_utm2 <- st_transform(plot_utm2, crs = 4326)
+options(digits = 8)
+plot_latlon15 <-  plot_utm2 %>%  mutate(lat = unlist(map(geometry,2)), long = unlist(map(geometry,1)))%>% as.data.table()
+##review locations
+mapview::mapView(plot_utm2,   cex = 8, legend = F, label = plot_latlon21$PlotNumber,
+               #map.types = "Eri.WorldImagery")      
+           map.types = "OpenTopoMap")
+
+utm.latlon <- bind_rows(plot_latlon15, plot_latlon21) %>%  dplyr::mutate(long = ifelse(long < 0 , 0-long, long)) %>% mutate(across(where(is.numeric), round, 6))
+fwrite(utm.latlon, "./clean_data/arctic_utm_to_latlong2.csv")
+
+```
+
+```{r chidliak 2023}
+# fixedcodes <- fread("./lookups/chidliak2023_badcodes2.csv") %>% as.data.table
+# plot.veg <- fread("./raw_data/2023_Chidliak_Veg.csv")
+# plot.veg[fixedcodes, "Species" := Species_new, on = c("Species" = "Species")]
+# plot.veg[taxon.lookup, "Code" := Code, on = c("Species" = "ScientificName")]
+# 
+# fwrite(plot.veg, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/chidliak23_veg.csv")
+# #badcodes <- plot.veg %>% dplyr::filter(is.na(Code)) %>% select(Species) %>% distinct
+# #fwrite(badcodes, "./lookups/chidliak2023_badcodes2.csv")
+# plot.veg.id <- fread("./raw_data/2023_Chidliak_Veg_Ids.csv") %>%  filter(!Group == "Vascular") %>% filter(!(FieldObs == "X" & Specimen == "X")) %>% filter(!FieldObs == "X")
+# plot.veg.id[taxon.lookup, "Code" := Code, on = c("Species_new" = "ScientificName")]
+# badcodes <- plot.veg.id %>% dplyr::filter(is.na(Code)) %>% select(Species_new) %>% distinct
+# fwrite(plot.veg.id, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/chidliak23_veg_added_IDs.csv")
+# 
+# plot.veg.conf<- fread("./raw_data/2023_Chidliak_Veg_Ids.csv") %>%  filter(!Group == "Vascular") %>% filter((FieldObs == "X" & Specimen == "X"))
+# plot.veg.conf[taxon.lookup, "Code" := Code, on = c("Species_new" = "ScientificName")]
+# fwrite(plot.veg.conf, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/chidliak23_veg_confirmed_IDs.csv")
+```
+
+
+```{r compiled arctic db, echo=FALSE}
+# fixedcodes <- fread("./lookups/arctic_badcodes_lookup.csv") %>% as.data.table
+# plots <- fread("./raw_data/compiled_arcticparks_data.csv") %>% filter(Location2 == "Nahanni12")
+# plots.unique <- plots %>% select(Plot_Name_1, VproNumber) %>% distinct
+# fwrite(plots.unique, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/nahanni12_plots.csv")
+# plot.veg <- plots %>% select(Plot_Name_1, VproNumber, Species, A3, B1, B2, B3, B4, B5, C, D, Sum_cover)
+# xx <- plot.veg %>% dplyr::select(Plot_Name_1) %>% distinct
+# plot.veg$Species <- plot.veg$Species %>%  as.character() %>%  str_trim("right")
+# plot.veg <- plot.veg %>% mutate(across(where(is.numeric), ~na_if(., 0))) %>% as.data.table
+# plot.veg[fixedcodes, "Species" := Species_new, on = c("Species" = "Species")]
+# plot.veg[taxon.lookup, "Code" := Code, on = c("Species" = "ScientificName")]
+# plot.veg <- plot.veg %>% filter(!is.na(Code)) %>% filter(!Code %in% "x")
+# plot.veg[taxon.lookup, "lifeform" := Lifeform, on = c("Code")]
+# # plot.veg <- plot.veg %>% data.frame
+# # plot.veg <- plot.veg %>% mutate(C = ifelse(lifeform %in% "12", Sum_cover, C)) %>% 
+# #   mutate_at(vars(matches('B')))
+# ##Run once to get bad codes then add the correct one in lookup table
+#  badcodes <- plot.veg %>% dplyr::filter(is.na(Code)) %>% select(Species) %>% distinct
+#  fwrite(badcodes, "./lookups/arctic_badcodes2.csv")
+#  fwrite(plot.veg, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/nahanni12_veg.csv")
+
+
+```
+
+
+```{r complied arctic site, echo=FALSE}
+#plots <- fread("./raw_data/compiled_arcticparks_data.csv")
+# plot.env <- plots %>% filter(Location2 == "Nahanni12") %>% select(Plot_Name_1, VproNumber, Latitude, Longitude, Habitat, Field_Crew, FieldCommName, `Field Community name`,Crew, Botanist, Date) %>% mutate(Longitude = 0-Longitude) %>% filter(!is.na(Latitude))
+# fwrite(plot.env, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/compiled_arctic_db_site.csv")
+
+```
+
+
+```{r CHARS2016}
+#plots <- fread("./raw_data/IMA_2016Plots_Serguei_20200121.csv")
+# plots.veg <- plots %>% select(PlotNumber, VproNumber, Species, Cover4, Cover5, Cover6, Cover7)
+# fwrite(plots.veg, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/Chars2016_veg.csv")
+# plots.env <- plots[,c(1:41)] %>% filter(!is.na(X))
+# fwrite(plots.veg, "F:/OneDrive - Government of BC/ECCC_Arctic-temp/Digital Data to Merge/Chars2016_veg.csv")
+```
+

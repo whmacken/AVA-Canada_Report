@@ -1,0 +1,125 @@
+---
+title: "The Canadian Arctic Vegetation Archive and Classification"
+subtitle: "Biogeoclimatic mapping of the Canadian Arctic: an application example for Victoria Island, NU"
+author: "William H MacKenzie"
+date: 04-04-17
+execute:
+  echo: false
+  warning: false
+  error: false
+  #cache: true
+format: PrettyPDF-pdf
+  #pdf:
+   # documentclass: scrartcl
+    #papersize: letter
+editor: visual
+---
+
+```{r packages}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+require(tidyverse)
+require(DBI) #loads odbc as well
+require(data.table)
+require(devtools)
+require(knitr)
+require(sf)
+require(ggmap)
+require(mapview)
+require(mapdeck)
+register_google("AIzaSyAosVE6MpjgQyNyG2NUcO4IsiKt7kd_eos")
+```
+
+
+The current Circumpolar Arctic Vegetation Map (CAVM) defines arctic subzones based on a combination of physiognomy, vegetation cover, and vascular diversity. The CAVM is created at a 1:7.5 million where elevation effects on climates within the subzones is not spatially differentiated.  
+**Victoria Island** (or ***Kitlineq***) is a 217,291 km^2^  island of the southern [Canadian Arctic Archipelago](https://en.wikipedia.org/wiki/Canadian_Arctic_Archipelago "Canadian Arctic Archipelago") and is [Canada's second largest island](https://en.wikipedia.org/wiki/List_of_Canadian_islands_by_area "List of Canadian islands by area") after Ellesmere Island. The western third of the island belongs to the [Inuvik Region](https://en.wikipedia.org/wiki/Inuvik_Region "Inuvik Region") in the Northwest Territories; the remainder is part of Nunavut's [Kitikmeot Region](https://en.wikipedia.org/wiki/Kitikmeot_Region "Kitikmeot Region").
+The Circumpolar Arctic Vegetation Map[\[1\]](#_ftn1) – CAVM (Walker et al. 2005) subdivides Victoria Island into B, C, and D subzones, three of the potential five arctic subzones. The five CAVM subzones are characterized by their vegetation physiognomy and climate attributes (Yurtsev 1994, Elvebakk 1999). The entire island is placed in the **Central Canada** floristic province based on the flora of the region(Yurtsev 1994).
+
+![CAVM bioclimatic subzones of Victoria Island and neighbouring regions](images/CAVM_VictoriaIsland.png){fig-align="left" width="374"}
+
+[\[1\]](#_ftnref1) Download at <http://www.geobotany.uaf.edu/cavm/>
+
+However, significant topographic variability occurs on the island with elevations above 600m in the Schaler Mountains
+
+![100m elevation classes on Victoria Island](images/Elevation_VictoriaIsland.png){fig-align="center" width="424"}
+
+## Modelled Biogeoclimatic subzones of Victoria Island
+One major objective of the CASBEC project is to map the CAVM subzones at a spatial resolution that will differentiate the elevation sequence of bioclimates in the Canadian Arctic. Each biogeoclimatic (BGC) unit will support a different suite and distribution of ecosites. The spatial mapping of BGC subzones will aid understanding of types of ecosystems and distibution of types within the CAVM.  classification will be described for each subzone within the field guide region.
+Several methods to create a topographically resolved CAVM map are possible. The CAVM project does describe mountain complex units for areas of high topographic relief and suggest a general 300m elevation banding of subzones in these areas. A simple application of these rules to create a finer resolution subzone map is possible but does not account for latitudinal or other climate compensating factors. The CAVM also sets a range of summer temperatures a that define each CAVM subzone. Our application of this univariate temperature rule across the Canadian arctic did not align with ground truthed point data in the eastern and western arctic. In the central arctic application of the CAVm rules are approximate in matching subzone lines but only when temperature limits are manually adjusted.
+Rather than a manual approach, I modelled the distribution of the CAVM subzones using machine learning using field and aerial survey training points, and the 1km raster climate covariates from ClimateNA (Wang et al. 2016).
+I initially focussed on Victoria island where the work of CHARS provides a relatively good density of training data and observations.
+
+
+The model provides
+
+![Preliminary modelled CAVM subzones of Victoria island from Random Forests modelling of climate surface layers and field training points.](images/PredictedBGCs_VictoriaIsland.png){fig-align="center" width="424"}
+
+## **Zonal vegetation of biogeoclimatic units of Victoria Island.**
+
+SE Victoria Island only has calcareous bedrock and, therefore has ecosystems distinct from areas of equivalent climate regime but non-calcareous surficial materials. The primary separator between the zonal ecosystems of the CAVM subzones is the total cover of vegetation. From a biogeoclimatic perspective the 3 CAVM subzones represent the same BGC Zone , which we've termed the Arctic Mountain-Avens Tundra (CMAT) zone.
+
+![Vegetation Summary for Zonal ecosites for 3 subzones on Victoria Island](images/ZonalCompare_VictoriaIsland.png){width="516"}
+
+These areas share the same zonal ecosystem association.
+
+#### Dryas integrifolia – Saxifraga oppositifolia Association
+
+Dryas integrifolia – Saxifraga oppositifolia Association is a High and Mid Arctic tundra and barren association that is common on winter-exposed, gravelly, well-drained calcareous soils. A continuous to spare mat of entire-leaved mountain avens (*Dryas integrifolia*), the cushion plant purple mountain saxifrage (*Saxifraga oppositifolia*), and drought tolerant rock sedge (*Carex rupestris*) or short-leaved sedge (*Carex fuliginosa*) characterize this dry tundra association. Arctic willow (*Salix arctica*) occurs at very low cover values. A high percentage of unvegetated or crustose lichen cover is common on the typic and barrens subassociation but higher cover occurs on some *Carex rupestris* sites. This association occurs on a wide variety of landscape positions elevated strand beaches, pingos, scree slopes, ridges, and gravelly kame and till often with cryoturbation features such as high-centered polygons, non-sorted circles, and nets. Well-drained Brunisolic Static Cryosols, Regosolic Turbic and Static Cryosols, and Orthic Turbic Cryosols have all been recorded for this association. Four sub-associations are distinguished: ARC041.1 (Typic), ARC041.2 (*Carex rupestris*), ARC041.3 (Barrens), and ARC041.4 (*Carex nardina*).
+
+### Subzone D
+
+![Zonal tundra in SubZone D, Victoria Island.](images/ZonalD_image.png){width="450"}
+
+-   Zonal tundra of *Dryas integrifolia* and *Carex rupestris* enriched with diverse forb flora commonly and high vascular plant cover
+
+-   Late snow beds dominated by *Cassiope tetragona*
+
+-   Riparian areas support low shrub ecosystems dominated by *Salix richardonsii*
+
+-   Some shallow organic matter accumulation in more productive wet ecosystems
+
+### Subzone C
+
+![Zonal tundra in SubZone C, Victoria Island.](images/ZonalC_image.png){width="450"}
+
+-   Zonal tundra of *Dryas integrifolia* and *Carex rupestris* + *C. fuliginosa* with few additional forbs.
+
+-   High vascular cover in southern areas grading to sparse cover near CAVM B boundary
+
+-   Cassiope tetragona absent from late snowbeds. *Carex rupestris* and Dryas
+
+-   No shrubs species capable of growing \>15cm occur even in riparian sites
+
+-   Some very shallow organic matter accumulation in more productive wet ecosystems
+
+### Subzone B
+
+![Zonal tundra in SubZone B, Victoria Island. Wetland habitats (background) are the only well vegetated ecosystems in the subzone.](images/ZonalB_image.png){width="450"}
+
+-   Zonal tundra of sparse *Dryas integrifolia* with few associated sedges or forbs.
+
+-   Low vascular cover in most habitats except wetlands.
+
+-   Late snowbeds dominated by ‘black biotic crust’.
+
+### Subzone A
+
+![Zonal tundra in SubZone A, Victoria Island.](images/SubzoneA_VictoriaIsland%20(1%20of%201).JPG){fig-align="left" width="400"}
+
+-   Zonal tundra of sparse cushion plants with no dwarf-woody shrubs
+
+-   Low vascular cover in all habitats except wetlands.
+
+-   Late snowbeds dominated by ‘black biotic crust’.
+
+-   Limited extent only occuring \>\~450 m in the northern Schaler Mountains
+
+## Literature Cited
+
+Elvebakk, A. 1999. 1999 Bioclimatic delimitation and subdivision of the Arctic. Det Norske VidenskapsAkademi. I. Mat. Naturv. Klasse, Skrifter, Ny 38:81–112.
+
+Walker, D. A., M. K. Raynolds, F. J. A. Daniëls, E. Einarsson, A. Elvebakk, W. A. Gould, A. E. Katenin, S. S. Kholod, C. J. Markon, E. S. Melnikov, N. G. Moskalenko, S. S. Talbot, B. A. (†. Yurtsev, and The other members of the CAVM Team. 2005. The Circumpolar Arctic vegetation map. Journal of Vegetation Science 16:267–282.
+
+Wang, T., A. Hamann, D. Spittlehouse, and C. Carroll. 2016. Locally downscaled and spatially customizable climate data for historical and future periods for North America. PLoS ONE 11.
+
+Yurtsev, B. A. 1994. Floristic division of the Arctic. Journal of Vegetation Science 5:765–776.

@@ -1,0 +1,346 @@
+---
+title: "Import Vpro R format data"
+author: "William H MacKenzie"
+date: "18/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(tidyverse)
+require(DBI) #loads odbc as well
+require(data.table)
+source("./_functions/update_taxa.R")
+```
+# Background
+
+This script imports a VPRO _Veg table in csv format and 
+1. compares to the latest provincial standard updates species codes to current provincial standards.
+2. flags codes that do not match the provincial code list or are considered excluded
+3. identifies any duplicated records and merges into a single record.
+4. checks that species are entered in the correct layer by lifeform
+5.  updates strata totals where those values are not included
+6. adds a layer value to A2 or B2 where only a strata total.
+
+Summary statistic of the collection are then output
+The final table should be re-imported into the Vpro BECMaster database
+
+
+
+```{r import data}
+ becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2024.accdb;")
+
+
+plot.env <- dbReadTable(becmaster, "AVACanada2024_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
+plot.info <- dbReadTable(becmaster, "AVACanada2024_Admin")
+plot.veg <- dbReadTable(becmaster, "AVACanada2024_Veg") 
+dbDisconnect(becmaster)
+
+sppmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/ArcticSpeciesInfo/NationalSpeciesLibrary.accdb;")
+taxon.all  <- dbReadTable(sppmaster, "USysAllSpecs")
+taxon.all1 <- dbReadTable(sppmaster, "AllCodes")
+pasl  <- dbReadTable(sppmaster, "PASL_Species2019")
+vascan <- dbReadTable(sppmaster, "Vascan_Taxa_v37_11")
+arctic  <- dbReadTable(sppmaster, "ArcticSpecies")
+
+dbDisconnect(sppmaster)
+
+# sppmaster2 <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/ArcticSpeciesInfo/NationalSpeciesLibrary.accdb;")
+# taxon.all2  <- dbReadTable(sppmaster2, "PASL_Species2019")
+# dbDisconnect(sppmaster2)
+
+sppmaster3 <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/ArcticSpeciesInfo/NationalSpeciesLibrary.accdb;")
+vascan  <- dbReadTable(sppmaster3, "Vascan_Taxa_v37_11")
+dbDisconnect(sppmaster3)
+#taxon.all <- fread("D:/CommonTables/SpeciesMaster/SpeciesMaster01Dec2020.csv", header = T, stringsAsFactors = F, strip.white = T)
+#taxon.info2 <- taxon.all1  %>% mutate(ScientificName = FullTaxaName)#%>% filter(SYNONYM == "FALSE")
+taxon.info <- taxon.all %>% filter(Codetype == "U" | Codetype == "D") %>% dplyr::select(-ID)%>% mutate(Species = Code)
+#vascan.info <- vascan %>% mutate(ScientificName = ifelse(taxonRank == "genus", paste0(genus, " spp."), 
+                # ifelse(taxonRank == "species", paste0(genus, " ", specificEpithet), 
+                # ifelse(taxonRank == "subspecies", paste0(genus, " ", specificEpithet, " ssp. ", infraspecificEpithet),
+                # ifelse(taxonRank == "variety", paste0(genus, " ", specificEpithet, " var. ", infraspecificEpithet),
+                # ifelse(taxonRank == "family", family, NA))))))
+
+## only currently accepted codes
+taxon.excluded <- taxon.all %>% filter(Codetype == c("X")) %>% dplyr::select(-ID) %>% mutate(Species = Code)
+#taxon_geog_update <- fread("./raw_data/Excluded_Spp_Global_UpdateCodes.csv")  %>% filter(!GlobalUpdate == "")
+#taxon_badcode_update <- fread("./raw_data/Bad_Codes_Update.csv") %>% filter(!Code == "", !is.na(Code))
+#taxon_badcode_update2 <- fread("./raw_data/Bad_Codes_Update2.csv") %>% filter(!Code == "")
+#taxon_badcode_update2 <- fread("./raw_data/Bad_Codes_Update3.csv") %>% filter(!Code == "")
+#taxon_badcode_update <- rbind(taxon_badcode_update,taxon_badcode_update2)
+```
+
+```{r fix Bliss}
+bliss.proj = c("Bliss1984b")
+plot.proj <- plot.env %>% select(PlotNumber, FieldNumber, ProjectID, StrataCoverHerb, StrataCoverMoss)
+taxon.names <- taxon.info %>% select(Species,ScientificName, Lifeform )
+bliss <- left_join(plot.proj, plot.veg) %>% filter(ProjectID %in% bliss.proj) %>% left_join(taxon.names) %>% select(PlotNumber, FieldNumber, StrataCoverHerb, StrataCoverMoss, Species, ScientificName,Lifeform, Cover6, Cover7) %>%  rowwise() %>% mutate(cover = sum(Cover6,Cover7, na.rm=T))
+bliss.wide <- bliss %>% pivot_wider(id_cols = c("Species", "ScientificName", "Lifeform"), names_from = "FieldNumber", values_from = cover) %>%  mutate(across(where(is.numeric), round, 3))
+#%>% group_by(PlotNumber) %>% mutate(sumcover6 = sum(Cover6, na.rm = TRUE), sumcover7 = sum(Cover7, na.rm = TRUE)) %>% mutate(cov6x = StrataCoverHerb/sumcover6, cov7x = StrataCoverMoss/sumcover7)
+#bliss.new <- bliss %>% mutate(Cover6 = Cover6*cov6x, Cover7 = Cover7*cov7x) %>% mutate(across(where(is.numeric), round, 2))
+fwrite(bliss.wide, "blissPlantProduction.csv")
+
+```
+
+
+
+```{r clean codes}
+plot.veg$Species <- plot.veg$Species %>%  as.character() %>% toupper() %>% str_trim("right")
+#plot.veg <- plot.veg %>% na_if(0) ## update zero entries to na
+vegDat_nomatch1 <- anti_join(plot.veg, taxon.info) 
+Error1 <- nrow(vegDat_nomatch1)
+
+###update codes based on global code revision table (for geographically defined taxon updates)
+# taxon_update <- taxon_geog_update[!taxon_geog_update$GlobalUpdate == "",] %>% distinct()
+# plot.veg1 <- left_join (plot.veg,taxon_update)
+# plot.veg1$Species <- ifelse(is.na(plot.veg1$GlobalUpdate), plot.veg1$Species, plot.veg1$GlobalUpdate)
+# plot.veg <- plot.veg1 %>% dplyr::select(-GlobalUpdate)
+# 
+# vegDat_nomatch2 <- anti_join(plot.veg, taxon.info) 
+# Error2 <- nrow(vegDat_nomatch2)
+
+### update bad codes based on lookup field
+# taxon_update2 <- taxon_badcode_update[!taxon_badcode_update$Code == "",] %>% distinct() %>% dplyr::rename("Species" = OldCode)
+# plot.veg1 <- left_join (plot.veg,taxon_update2, by = "Species")
+# plot.veg1$Species <- ifelse(is.na(plot.veg1$Code), plot.veg1$Species, plot.veg1$Code)
+# plot.veg <- plot.veg1 %>% dplyr::select(-Code)
+# 
+# vegDat_nomatch3 <- anti_join(plot.veg, taxon.info) 
+# Error3 <- nrow(vegDat_nomatch3)
+
+###update synonym codes to new codes
+#taxon.all <- taxon.all %>% mutate(OldCode = OldCodeVPro)
+plot.veg <- update_taxa(plot.veg, taxon.all)
+
+#noMatch <- taxon.xwalk[taxon.xwalk$OldCodeVPro != taxon.all$Code, 5:6] %>% dplyr::rename("Species" = OldCode) ##creates code update crosswalk
+not_in_national <- anti_join (plot.veg, taxon.all, by = c("Species" = "Code")) ##join tables on Species field
+temp <- not_in_national %>% group_by(Species) %>% summarize(n=n())
+in.allcode <- inner_join(temp, taxon.all1, by = c("Species" = "Code"))
+in.pasl <- inner_join(temp, pasl, by = c("Species" = "LETTERCODE")) %>% filter(SYNONYM == "FALSE")
+#in.arctic <- inner_join(temp, arctic, by = c("Species" = "LETTERCODE"))
+
+fwrite(temp, "badcodes.csv")
+fwrite(in.pasl, "update_to_national_list.csv")
+
+temp$Species <- ifelse(is.na(temp$Code), temp$Species, temp$Code) ## update the Species field with new Code
+plot.veg <- temp %>% dplyr::select(-Code)##remove Code field from original data
+
+vegDat_nomatch4 <- anti_join(plot.veg, taxon.info) 
+Error4 <- nrow(vegDat_nomatch4)
+
+vegDat_nomatch <- anti_join(plot.veg, taxon.info) ## produce table where data does not have a matching BC code
+badcodes <- vegDat_nomatch %>% select(Species) %>% distinct
+
+# vegfields <- plot.veg %>% select(PlotNumber, Species, Layer, Collected) %>% distinct(PlotNumber, Species, Collected)
+# plot.veg4 <- left_join(plot.veg3, vegfields)
+# xx <- plot.veg4 %>% 
+#   group_by(PlotNumber, Species) %>% 
+#   filter(n()>1)
+
+
+vegDat_badcode <- anti_join(vegDat_nomatch, taxon.excluded) ## produce table with unrecognized codes
+fwrite(vegDat_badcode, "./out_data/ArcticMaster2024_BadSppCodes.csv", row.names = FALSE, col.names = TRUE)
+### identify good species but excluded from BC
+vegDat_excluded <- right_join(vegDat_nomatch, taxon.excluded)
+spp_excluded <- unique(vegDat_excluded$Species)## produce table where the code is good but not in BC (supposedly)
+fwrite(vegDat_excluded, "./out_data/ArcticMaster_Excluded_SppCodes.csv", row.names = FALSE, col.names = TRUE)
+
+vegDat_nomatch5 <- anti_join(vegDat_nomatch, vegDat_excluded)
+Error5 <- nrow(vegDat_nomatch5)
+
+#fwrite(vegDat_nomatch5, "./out_data/Sadler_AllUnmatchedCodes.csv", row.names = FALSE, col.names = TRUE)
+bad.codes <- vegDat_nomatch5 %>% dplyr::select(Species) %>% dplyr::count(Species)
+fwrite(bad.codes, "./out_data/Bad_Codes_tobe_Updated_arctic.csv")
+```
+
+
+CAVA to PASL
+```{r}
+###add species names from National list
+plot.veg2 <- plot.veg %>% select(PlotNumber, Species) %>% left_join(taxon.info) %>% select(PlotNumber, ScientificName)
+PASL_missed <- anti_join(plot.veg2, taxon.info2) %>% count(ScientificName)
+PASL_has <- inner_join(plot.veg2, taxon.info2) %>% count(ScientificName)
+
+plot.veg3 <- plot.veg %>% select(PlotNumber, Species) %>% left_join(taxon.info) %>% filter(Lifeform < 9 | Lifeform == 12) %>% select(PlotNumber, ScientificName)
+vascan_missed <- anti_join(plot.veg3, vascan.info) %>% count(ScientificName)
+
+```
+
+
+```{r duplicates}
+### identify duplicate entries
+
+veg_dups <- as.data.table(plot.veg) %>% dplyr::select(PlotNumber, Species) %>% group_by(PlotNumber, Species) %>% filter(n()>1) ## search for duplicate spp entries in plots
+fwrite(veg_dups, "./out_data/Duplicate_SppCodes.csv", row.names = FALSE, col.names = TRUE)
+
+### identify species covers entered into the wrong strata
+temp2 <- taxon.info %>% dplyr::select(Code, Lifeform) %>% dplyr::rename("Species" = Code)
+veg_layer <- left_join(plot.veg, temp2)
+
+
+
+trees <- c(0,1,2); shrubs <- c(0,1,2,3,4); herbs <- c(0, 5, 6, 7, 8, 12); mosses <- c(0, 9, 10, 11,15);seedling <- c(1,2); seedling2 <- c(3,4)
+vegA <- veg_layer %>% dplyr::select(PlotNumber, Species, TotalA, Lifeform) %>% filter(!is.na(TotalA)) %>% filter(!Lifeform %in% trees) %>% drop_na()
+vegB <- veg_layer %>% dplyr::select(PlotNumber, Species, TotalB, Lifeform) %>% filter(!is.na(TotalB)) %>% filter(!Lifeform %in% shrubs) %>% drop_na()
+vegC <- veg_layer %>% dplyr::select(PlotNumber, Species, Cover6, Lifeform) %>% filter(!is.na(Cover6)) %>% filter(!Lifeform %in% herbs) %>% drop_na()
+
+### add new entry for trees as mosses with cover in moss layer and remove entry in tree layer
+veg_seedling <-  veg_layer %>% filter(!is.na(Cover7)) %>% filter(Lifeform %in% seedling) %>% drop_na(Lifeform) %>% as.data.table()
+veg_seedling <-as.data.table(veg_seedling)
+
+
+## if there is cover 5 values then simply delete the cover 7 value
+#veg_seedling <- veg_seedling[veg_seedling[,c(4:25)] > 0, c(4:25) := NA]
+### move shrub seedlings to B layer and remove
+veg_seedling2 <-  veg_layer %>% dplyr::select(PlotNumber, Species, Cover7, Lifeform) %>% filter(!is.na(Cover7)) %>% filter(Lifeform %in% seedling2) %>% drop_na(Lifeform)
+
+vegD <- veg_layer %>% dplyr::select(PlotNumber, Species, Cover7, Lifeform) %>% filter(!is.na(Cover7)) %>% filter(!Lifeform %in% mosses) %>% drop_na()
+```
+
+##Data fixes
+Add total A and total B where not in data
+Add A2 and B2 where totals only
+```{r update species strata totals}
+pc <- plot.veg
+# update total columns if no value
+pc$TotalA[!(is.na (pc$TotalA))] <- NA
+pc$TotalA[pc$TotalA == 0] <- NA# sets any total that was entered as zero to NA
+pc$TotalA <- ifelse(is.na(pc$TotalA), rowSums (pc[, c(4,6,8)], na.rm = TRUE), NA) # where covers 1,2,3 sum >1 put in total where no totals exist
+pc$TotalA[pc$TotalA == 0] <- NA
+pc$TotalA[pc$TotalA >99] <- 99
+
+pc$TotalB[!(is.na (pc$TotalB))] <- NA # sets any total that was entered as zero to NA
+pc$TotalB[pc$TotalB == 0] <- NA
+pc$TotalB <- ifelse(is.na(pc$TotalB), rowSums (pc[,c(12, 14, 16, 18, 20)], na.rm=TRUE), NA)
+pc$TotalB[pc$TotalB == 0] <- NA
+pc$TotalB[pc$TotalB >99] <- 99
+## add the total to A2 or B2 where only totals have been entered
+
+pc$Cover2 <- ifelse(pc$TotalA > 0 & rowSums (pc[,c(4,6,8)], na.rm=TRUE) == 0, pc$TotalA, pc$Cover2)
+pc$Cover5 <- ifelse(!(is.na(pc$TotalB)) & rowSums (pc[, 12:21], na.rm=TRUE) == 0, pc$TotalB, pc$Cover5)
+## Checks to see where problems are
+# nototA <- pc %>%
+#     mutate(Total = select(., c(Cover1,  Cover2, Cover3)) %>% rowSums(na.rm = TRUE)) %>% select (PlotNumber,Species,Total, TotalA) %>% filter(Total > 0, is.na(TotalA))
+# # 
+# onlytotA <- pc %>%
+#     mutate(Total = select(., c(Cover1, Cover2, Cover3)) %>% rowSums(na.rm = TRUE)) %>% select (PlotNumber,Species,Total, TotalA) %>% filter(Total == 0, !(is.na(TotalA)))
+# # pc[paste0(pc$PlotNumber,  pc$Species) %in% paste0(notot$PlotNumber, notot$Species),] <- 
+plot.veg <- pc %>% na_if(0)
+veg_dups2 <- as.data.table(plot.veg) %>% dplyr::select(-Layer, -Collected, -Flag, -ID) %>% mutate(HeightB = as.numeric(HeightB)) #group_by(PlotNumber, Species) %>% filter(n()>1)
+plot.veg2  <- veg_dups2 [, lapply(.SD, sum, na.rm = TRUE), by = c("PlotNumber", "Species")]
+
+plot.veg2[plot.veg2 == 0] <- NA
+vegfields <- plot.veg %>% select(PlotNumber, Species, Layer, Collected) %>% distinct(PlotNumber, Species, Collected)
+plot.veg4 <- left_join(plot.veg2, vegfields)
+# xx <- plot.veg4 %>% 
+#   group_by(PlotNumber, Species) %>% 
+#   filter(n()>1)
+
+### odbc export _VEG ACCESS table for updating in VPRO is too slow and fails on complete table so not used
+#plot.veg4 <- plot.veg4 %>% select(-n) 
+xx <- plot.veg4 %>% filter(Species == "PSEUMEN2")
+plot.veg5 <- plot.veg4 %>% mutate(PlotNumber = as.character(PlotNumber)) %>% dplyr::select(-n) #arrange(desc(PlotNumber)) %>% 
+# %>% #  mutate(across(where(is.numeric), round, 2)) %>% as.data.table
+plot.veg5 <- setDT(plot.veg5)[order(PlotNumber, decreasing = TRUE)]
+fwrite(plot.veg5, "./clean_data/BECMaster_Veg_updates.csv")
+
+
+#  fieldnames = colnames(plot.veg5) 
+#  vegupdate <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=D:/BECMaster64/vegupdate.accdb;")
+# dbCreateTable(vegupdate, "BECMaster64_updated_Veg", fields = fieldnames)
+# dbDisconnect(vegupdate)
+
+
+```
+## export a table of Plot|Species|Type|Cover for classification work
+```{r R-export}
+##sum across Total A, TotalB, 6, 7, 
+veg_anal <- plot.veg4 %>% dplyr::select (PlotNumber, Species, TotalA, TotalB, Cover6, Cover7, Cover8, Cover9, Cover10)  %>%  #%>% replace(is.na(.), 0)
+   mutate(Cover = rowSums(.[,3:9], na.rm = T))
+veg_anal <- veg_anal %>% left_join(taxon.info, by = "Species") %>% dplyr::select(PlotNumber, Species, Cover, Lifeform) %>% na_if(0)
+fwrite(veg_anal, "./clean_data/BECMaster_VegR_clean.csv", row.names = FALSE, col.names = TRUE)
+## left join to species list
+
+```
+
+```{r update layer totals}
+strat.tot <- setDT(plot.veg4)[, list(TotA = sum(TotalA, na.rm = TRUE),TotB = sum(TotalB, na.rm = TRUE),TotC = sum(Cover6, na.rm = TRUE), TotD = sum(Cover7, na.rm = TRUE)), by=PlotNumber]
+strat.tot[,2:5][strat.tot[,2:5] > 100] <- 100
+fwrite(strat.tot, "./clean_data/strata_totals_calculated.csv")
+veg.layer <- plot.env %>% select(PlotNumber, StrataCoverTree, StrataCoverShrub, StrataCoverHerb, StrataCoverMoss)
+veg.layer2 <- veg.layer %>% filter_at(vars(StrataCoverTree, StrataCoverShrub, StrataCoverHerb, StrataCoverMoss),any_vars(!is.na(.)))
+veg.layer2[,2:5][veg.layer2[,2:5] > 100] <- 100
+veg.layer2[is.na(veg.layer2)]  <- 100
+
+veg.strat.compare <- left_join(veg.layer2, strat.tot) %>% mutate(StrataCoverTree = ifelse(StrataCoverTree == 0 & TotA >0, TotA, StrataCoverTree),
+                                                                 StrataCoverShrub = ifelse(StrataCoverShrub == 0 & TotB >0, TotB, StrataCoverShrub),
+                                                                 StrataCoverHerb = ifelse(StrataCoverHerb == 0 & TotC >0, TotC, StrataCoverHerb),
+                                                                 StrataCoverMoss = ifelse(StrataCoverMoss == 0 & TotD >0, TotD, StrataCoverMoss))
+veg.add.strat <- anti_join(veg.layer, veg.layer2, by = "PlotNumber")
+
+veg.add.strat<- left_join(veg.add.strat, strat.tot) %>% mutate(StrataCoverTree =  TotA,
+                                                                 StrataCoverShrub =  TotB,
+                                                                 StrataCoverHerb =  TotC,
+                                                                 StrataCoverMoss = TotD)
+veg.layer.new <- rbind(veg.strat.compare,veg.add.strat)
+
+fwrite(veg.layer.new, "./clean_data/strata_totals_calculated.csv")                   
+###total veg cover for admin table
+veg.tot <- veg.layer %>% mutate(StrataCoverTotal_calc = rowSums(.[,2:5], na.rm = T)) %>% mutate(StrataCoverTotal_calc = ifelse(StrataCoverTotal_calc>100, 100, StrataCoverTotal_calc))
+tot.tot <- plot.info %>% select(Plot, StrataCoverTotal)
+setDT(tot.tot)[veg.tot, StrataCoverTotal := StrataCoverTotal_calc, on = c(Plot = "PlotNumber")]
+
+fwrite(tot.tot, "./clean_data/total_vegcover_calculated.csv")
+
+
+```
+
+
+
+```{r flag plots with high unknown/genus/family level covers}
+### plots with >X cover of low specificity get low grade in veg quality rankings
+
+```
+
+
+```{r summary stats}
+
+##############Some stats on imported data
+####Count number of columns (species) required
+### should use some stats from the Power of BEC script for lifeform counts
+# 
+# veg_exc <- vegDat_excluded %>% dplyr::select(Species) %>% group_by(Species) %>% tally() %>% as.data.frame()
+# ggplot(veg_exc)+
+#    geom_qq(aes(sample = n))
+# 
+# veg_bad <- vegDat_badcode  %>% dplyr::select(Species) %>% group_by(Species) %>% tally() %>% as.data.frame()
+# ggplot(veg_bad, aes(x=reorder(Species, -n), y=n))+
+#    geom_point()
+# 
+# veg_count <- plot.veg  %>% dplyr::select(Species) %>% group_by(Species) %>% tally() %>% as.data.frame()
+# ggplot(veg_count)+
+#    geom_qq(aes(sample = n))
+# 
+# veg_norare <- veg_count[!veg_count$n <=5,]
+# ggplot(veg_norare)+
+#    geom_qq(aes(sample = n))
+# ###Plot number of species in density graph
+# ggplot(data=veg_norare,aes(x=reorder(Species, -n), y=n))+
+#  geom_point()
+
+
+# ggplot(plot.veg,aes(Species))+
+#   geom_density(adjust = 5)
+
+```
+
+SadlerThesis_CleanedData_VascularMatrix
+
+```{r Sadler data temporary import}
+# sadler1 <- fread("./raw_data/SadlerThesis_CleanedData_VascularMatrix.csv") %>% 
+#   select(-Type, -Site, -Plot, -FieldNumber) %>% pivot_longer(-PlotNumber, names_to = "Species", values_to = "cover") %>% mutate(layer = "6")
+# sadler2 <- fread("./raw_data/SadlerThesis_CleanedData_CryptoMatrix.csv") %>% 
+#   select(-MPlot, -Site, -Plot, -FieldNumber) %>% pivot_longer(-PlotNumber, names_to = "Species", values_to = "cover") %>% mutate(layer = "7")
+# sadler <- rbind(sadler1,sadler2) %>% drop_na()# %>% filter(!Code == "")
+# plot.veg = sadler
+```
