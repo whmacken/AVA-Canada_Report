@@ -95,16 +95,15 @@ Based on the 3 factors outlined above we propose dividing the classification pro
 
 ![Broad geology of proposed fieldguide areas (red = acidic, green = calcareous)](images/Fieldguide_Areas.pdf){fig.pos="h"}
 
-
 ### 1. Yukon Arctic
 
 A guide to this region has already been completed. MacKenzie and others' (2022) [Ecoystems of the Yukon Arctic region](https://www.researchgate.net/publication/378740254_Ecosystems_of_the_Yukon_Arctic_Region_a_guide_to_identification#fullTextFileContent) describes ecosites and biogeoclimatic zones for the primarily unglaciated Beringian area of the Canadian arctic occuring between the Alaska border and the Mackenzie river delta. This relatively small region (22,000 km^2^) is topographically, climatically,and geologically very complex so a high density of plots was required to build a comprehensive classification. Due to data quality challenges only about 1300 of the 2600 plots compiled for the region were used in the field guide classification.
 
-### 2. Arctic Archipelago 
+### 2. Arctic Archipelago
 
 The largest field guide region (0.87 million km^2^) covers the western arctic archipelago largely underlain with calcareous substrates and low precipitation. CAVM subzone C and B dominate the region with northern edge of the D subzone occurring on the southern islands. Subzone A occurs in the NW and at high elevations from northern Victoria island and north. Extensive sampling for CHARS and by Dietbert Thannheiser possible provide sufficient sampling for classification of the D and C subzones of the region, though confirmation of the classifications applicability in unsampled regions is likely required. Additional sampling of the A and B subzones and more geographically extensive sampling should allow a full classification of the Region to be accomplished.
 
-### 3. Central Continental 
+### 3. Central Continental
 
 Of nearly the same extent as the Archipelago region (0.82 million km^2^) the continental arctic region contrasts sharply from that region. The Continental arctic is largely underlain by Canadian Shield granites though significant portions are underlain by less acidic parent materials. The Region is predominantly CAVM subzone E and southern D, subzones that are likely to have higher ecosystem diversity relative to the more extreme arctic subzones. Most available data is from impact assessment mapping projects and of fair quality and there are large gaps in sample distribution.
 
@@ -152,6 +151,7 @@ gt_tbl
 ```
 
 ## Yukon Arctic Region Guide and Ecosites
+
 ![Cover page Ecosystems of the Yukon Arctic Region](images/Yukon_arctic_guide_cover.jpg){#fig-cover width="200"}
 
 ### Example Field guide Layout
@@ -182,7 +182,6 @@ gt_tbl
 # gt.png <- gtsave(gt_tbl, "temp.png")
 # plot(gt.png)
 ```
-
 
 ```{r AA units}
 #| label: yukon.units

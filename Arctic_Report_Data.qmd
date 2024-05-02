@@ -39,7 +39,7 @@ require(leaflet)
 require(RColorBrewer)
 require(colorspace)
 require(flextable)
-register_google("AIzaSyAosVE6MpjgQyNyG2NUcO4IsiKt7kd_eos")
+register_google("see codes file")
 ```
 
 ```{r read in taxon lookup}
@@ -121,7 +121,7 @@ The following process was undertaken to update the AVA-Canada. Project-specific 
 Several large historic datasets were acquired with the most substantial provided by Dr. Dietbert Thannheiser from his extensive sampling of the Canadian Arctic archipelago in the 1970 - 80s. Modern datasets were acquired from plot data collected for numerous Parks Canada funded mapping projects, mapping and targeted classification sampling for the Canadian High Arctic Research Station, mapping projects by the Yukon provincial government and a number of industry funded mapping projects under taken for environmental impact assessment.
 
 | Project          | #Plots | Update Type  | Task                                                                             |
-|-----------|-----------|-----------|---------------------------------------|
+|-------------|-------------|-------------|---------------------------------|
 | CHARS 2021       | 36     | New          | Data entry of field cards                                                        |
 | CHARS 2016       | 23     | Fix          | Reimport corrected vegetaion data                                                |
 | Tuktuk Nogait NP | 23     | New          | Entered from scanned plot cards                                                  |
@@ -427,6 +427,6 @@ A shiny app was developed for displaying and downloading data from the AVA_Canad
 
 <https://becweb.shinyapps.io/AVA-Canada/>.
 
-![Screen shot of the shiny app for AVA-Canada plot data ](images/ShinyIO_screenshot.jpg)
+![Screen shot of the shiny app for AVA-Canada plot data](images/ShinyIO_screenshot.jpg)
 
-The shiny app is hosted on shiny.io where the data is stored as compact RDS files. 
+The shiny app is hosted on shiny.io where the data is stored as compact RDS files.

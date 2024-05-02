@@ -40,7 +40,7 @@ require(leaflet)
 require(RColorBrewer)
 require(colorspace)
 require(flextable)
-register_google("AIzaSyAosVE6MpjgQyNyG2NUcO4IsiKt7kd_eos")
+register_google("see codes file")
 ```
 
 ```{r import data}
