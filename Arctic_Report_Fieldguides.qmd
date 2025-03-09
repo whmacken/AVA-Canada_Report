@@ -1,6 +1,6 @@
 ---
 title: "The Canadian Arctic Vegetation Archive and Classification"
-subtitle: "Fieldguides for the Canadian Arctic Ecosystem Classification"
+subtitle: "Classification Areas for the Canadian Arctic Ecosystem Classification"
 author: "William H MacKenzie"
 execute:
   echo: false
@@ -59,9 +59,9 @@ provinces <- vect("./spatial_files/CanadianProvinces.gpkg")
 #   #geom_point(data = plot_loc, mapping = aes(x = Longitude, y = Latitude))
 # 
 # ### read data from AVA-Canada db
- becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2024.accdb;")
+ becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2025.accdb;")
 # 
-plot.env <- dbReadTable(becmaster, "AVACanada2024_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
+plot.env <- dbReadTable(becmaster, "AVA_Canada_2025_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
 # plot.admin <- dbReadTable(becmaster, "AVACanada2024_Admin")
 # plot.veg <- dbReadTable(becmaster, "AVACanada2024_Veg")
 # env.fields <- colnames(plot.env)
@@ -95,27 +95,27 @@ Based on the 3 factors outlined above we propose dividing the classification pro
 
 ![Broad geology of proposed fieldguide areas (red = acidic, green = calcareous)](images/Fieldguide_Areas.pdf){fig.pos="h"}
 
-### 1. Yukon Arctic
+### 1. Yukon Arctic (YK)
 
 A guide to this region has already been completed. MacKenzie and others' (2022) [Ecoystems of the Yukon Arctic region](https://www.researchgate.net/publication/378740254_Ecosystems_of_the_Yukon_Arctic_Region_a_guide_to_identification#fullTextFileContent) describes ecosites and biogeoclimatic zones for the primarily unglaciated Beringian area of the Canadian arctic occuring between the Alaska border and the Mackenzie river delta. This relatively small region (22,000 km^2^) is topographically, climatically,and geologically very complex so a high density of plots was required to build a comprehensive classification. Due to data quality challenges only about 1300 of the 2600 plots compiled for the region were used in the field guide classification.
 
-### 2. Arctic Archipelago
+### 2. Arctic Archipelago (AA)
 
 The largest field guide region (0.87 million km^2^) covers the western arctic archipelago largely underlain with calcareous substrates and low precipitation. CAVM subzone C and B dominate the region with northern edge of the D subzone occurring on the southern islands. Subzone A occurs in the NW and at high elevations from northern Victoria island and north. Extensive sampling for CHARS and by Dietbert Thannheiser possible provide sufficient sampling for classification of the D and C subzones of the region, though confirmation of the classifications applicability in unsampled regions is likely required. Additional sampling of the A and B subzones and more geographically extensive sampling should allow a full classification of the Region to be accomplished.
 
-### 3. Central Continental
+### 3. Central Continental (CC)
 
 Of nearly the same extent as the Archipelago region (0.82 million km^2^) the continental arctic region contrasts sharply from that region. The Continental arctic is largely underlain by Canadian Shield granites though significant portions are underlain by less acidic parent materials. The Region is predominantly CAVM subzone E and southern D, subzones that are likely to have higher ecosystem diversity relative to the more extreme arctic subzones. Most available data is from impact assessment mapping projects and of fair quality and there are large gaps in sample distribution.
 
 Extensive sampling may be required to adequately classify this region.
 
-### 4. Quebec-Labrador
+### 4. Quebec-Labrador (QL)
 
 Quebec-Labrador is wetter than other portions of the Canadian arctic and has many floristic elements from the Greenlandic flora that can be dominant components of ecosystems in the region. Therefore both the floristic composition and distribution of ecosystems on the landscape are likely significantly different that similar areas to the west of Hudson Bay. It is possible that the eastern coastal areas of the Continental Region and the oceanic islands in Hudson Bay match the the Quebec-Labrador region but
 
 There are two extensive data sets that cover this region. The Parks Canada dataset for Torngats is fairly extensive but the area is topographically and climatically complex. No classification work has yet been attempted but is likley that a classification could be developed and tested with a short field session. The Quebec data set is fairly extensive and may adequately describe the more topographically homogenous region sufficiently. Classification of this region may be undertaken by the Quebec ministry of environment.
 
-### 5. Baffin-Ellesmere
+### 5. Baffin-Ellesmere (BE)
 
 Baffin island and the SE coast of Ellesmere are topographically dramatic on the east coast and grading slowly to sea level on the western portions. The eastern portions are warmer and wetter due to oceanic influence. Most of the region is underlain by acidic igneous rock. The flora of Baffin includes elements of the Greenlandic flora
 
@@ -184,7 +184,7 @@ gt_tbl
 ```
 
 ```{r AA units}
-#| label: yukon.units
+#| label: aa.units
 #| tbl-cap: "Ecosites by CAVM subzone in the Arctic Archipelago"
 #| tbl-cap-location: top
 #| out-width: "50%"
