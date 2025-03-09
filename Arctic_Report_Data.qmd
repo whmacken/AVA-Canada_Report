@@ -2,27 +2,30 @@
 title: "The Canadian Arctic Vegetation Archive and Classification"
 subtitle: "Data compilation for the AVA-Canada: 2024 progress report"
 author: "William H MacKenzie"
+format:
+  html:
+    css: report_styles.css
+editor: source
 execute:
   echo: false
-  warning: false
   error: false
-  cache: true
-format: PrettyPDF-pdf
-  #pdf:
-   # documentclass: scrartcl
-    #papersize: letter
-editor: visual
-header-includes:
- \usepackage{booktabs}
- \usepackage{longtable}
- \usepackage{array}
- \usepackage{multirow}
- \usepackage[table]{xcolor}
- \usepackage{wrapfig}
- \usepackage{float}
- \floatplacement{figure}{H}
+  warning: false
+  message: false
+  fig.width: 8
+  fig.height: 6
+  fig.align: 'left'
+  fig.cap: true
+  fig.pos: H
+  out.width: '100%'
+  dev: html
+  fig.ext: html
+  cache: false
+  fig.retina: 2
+  dpi: 600
+  fig.asp: 1.5
+  fig.path: "./figures/"
 ---
-
+ 
 ```{r packages}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 
@@ -39,6 +42,7 @@ require(leaflet)
 require(RColorBrewer)
 require(colorspace)
 require(flextable)
+require(gt)
 register_google("see codes file")
 ```
 
@@ -52,11 +56,11 @@ taxon.lookup <- taxon.all %>% filter(Codetype == "U" | Codetype == "S" | Codetyp
 ```
 
 ```{r read data from AVA-Canada db}
- becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2024.accdb;")
+ becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2025.accdb;")
 
-plot.env <- dbReadTable(becmaster, "AVACanada2024_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
-plot.admin <- dbReadTable(becmaster, "AVACanada2024_Admin")
-plot.veg <- dbReadTable(becmaster, "AVACanada2024_Veg")
+plot.env <- dbReadTable(becmaster, "AVA_CANADA_2025_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
+plot.admin <- dbReadTable(becmaster, "AVA_CANADA_2025_Admin")
+plot.veg <- dbReadTable(becmaster, "AVA_CANADA_2025_Veg")
 env.fields <- colnames(plot.env)
 #odbc::odbcListColumns(becmaster, table = "BECMaster_fixing_ENV")
 dbDisconnect(becmaster)
@@ -82,7 +86,7 @@ set_flextable_defaults(
 
 ## Introduction
 
-The initial dataset for AVA-Canada was compiled in 2010 under the International Polar Year (IPY) by Will MacKenzie and Adrian Degroot. DeGroot and others surveyed published literature, theses, and other known project data sources for plot data, community descriptions or veg maps to inform a Canadian Arctic Classification. Plot data from projects was entered into Vpro, a programmed ACCESS data base developed for the BEC program in British Columbia and used to manage the ecosystem plots for the Canadian National Vegetation Classification. The original compilation produced a dataset of \~4800 releves. Since this original compilation, the author has continued to amass plot data from additional missed historical sources and various contemporary projects completed after 2010. In 2019, the AVA-Canada contained This project compiles this accumulated data into the standardized database following modern taxonomic standards.
+The initial dataset for AVA-Canada was compiled in 2010 under the International Polar Year (IPY) by Will MacKenzie and Adrian Degroot. DeGroot and others surveyed published literature, theses, and other known project data sources for plot data, community descriptions or veg maps to inform a Canadian Arctic Classification. Plot data from projects was entered into Vpro, a programmed ACCESS data base developed for the BEC program in British Columbia and used to manage the ecosystem plots for the Canadian National Vegetation Classification. The original compilation produced a data set of \~4800 releves. Since this original compilation, the author has continued to amass plot data from additional missed historical sources and various contemporary projects completed after 2010. In 2019, the AVA-Canada contained This project compiles this accumulated data into the standardized database following modern taxonomic standards.
 
 ## General summary of data compilation tasks
 
@@ -118,22 +122,24 @@ The following process was undertaken to update the AVA-Canada. Project-specific 
 
 ## AVA-Canada 2024 Update
 
-Several large historic datasets were acquired with the most substantial provided by Dr. Dietbert Thannheiser from his extensive sampling of the Canadian Arctic archipelago in the 1970 - 80s. Modern datasets were acquired from plot data collected for numerous Parks Canada funded mapping projects, mapping and targeted classification sampling for the Canadian High Arctic Research Station, mapping projects by the Yukon provincial government and a number of industry funded mapping projects under taken for environmental impact assessment.
+Several large historic data sets were acquired with the most substantial provided by Dr. Dietbert Thannheiser from his extensive sampling of the Canadian Arctic archipelago in the 1970 - 80s. Modern data sets were acquired from plot data collected for numerous Parks Canada funded mapping projects, mapping and targeted classification sampling for the Canadian High Arctic Research Station, mapping projects by the Yukon provincial government and a number of industry funded mapping projects under taken for environmental impact assessment.
 
-| Project          | #Plots | Update Type  | Task                                                                             |
-|-------------|-------------|-------------|---------------------------------|
-| CHARS 2021       | 36     | New          | Data entry of field cards                                                        |
-| CHARS 2016       | 23     | Fix          | Reimport corrected vegetaion data                                                |
-| Tuktuk Nogait NP | 23     | New          | Entered from scanned plot cards                                                  |
-| Larry Bliss 1984 | 82     | Fix          | Fixed species values                                                             |
-| Wapusk NP        | 299    | New & append | Imported new data from spreadsheets and standardized.                            |
-| Torngats NP      | 372    | New & append | Imported new full plot and partial plot data from spreadsheets and standardized. |
-| Aulivik NP       | 101    | New & append | Found gerferencing and additional plots. Still require site information          |
-| Chidliak Mine    | 259    | New          | Import company plot database                                                     |
-| Thannheiser      | 1934   | Updated      | Reimport                                                                         |
-| Yukon ELC        | 187    | Updated      | Data cleaning and quality sorting for classification                             |
+| Project | #Plots | Update Type | Task |
+|------------------|------------------|------------------|--------------------|
+| CHARS 2021 | 36 | New | Data entry of field cards |
+| CHARS 2016 | 23 | Fix | Reimport corrected vegetation data |
+| Tuktuk Nogait NP | 23 | New | Entered from scanned plot cards |
+| Larry Bliss 1984 | 82 | Fix | Fixed species values |
+| Wapusk NP | 299 | New & append | Imported new data from spreadsheets and standardized. |
+| Torngats NP | 372 | New & append | Imported new full plot and partial plot data from spreadsheets and standardized. |
+| Aulivik NP | 101 | New & append | Found georeferencing and additional plots. Still require site information |
+| Chidliak Mine | 259 | New | Import company plot database |
+| Thannheiser | 1934 | Updated | Reimport |
+| Yukon ELC | 187 | Updated | Data cleaning and quality sorting for classification |
+| Quebec | 698 | New | Imported and converted from provided digital files |
+| Gould 1999 | 363 | Fix | Fix plot numbering, add georeferencing, classification, fix vegetation cover. *Digital environment data misaligned with vegetation plot numbering* |
 
-: Projects updated in 2024
+: **Table 1: AVA Project Plots Added or Updated in 2024**
 
 ### Historical Data Incorporated into AVA
 
@@ -146,6 +152,40 @@ Several large historic datasets were acquired with the most substantial provided
 #| out-width: "90%"
 ##| fig-asp: 0.618
 proj.pnts <- pnts_sf %>% filter(ProjectID == "Thannheiser")
+mapviewOptions(fgb=FALSE)
+mapview::mapView(proj.pnts,   cex = 6, legend = F, 
+                 label = proj.pnts$PlotNumber, zcol = "ProjectID", 
+                 map.types = "OpenTopoMap")
+
+# library(ggplot2)
+# library(sf)
+# library(ggspatial)
+# require(prettymapr)
+# library(rosm)
+# addscalebar()
+# addnortharrow()
+# searchbbox("alta lake, british columbia", source="google")
+# require(seachbbox)
+# prettymap(osm.plot(searchbbox("nova scotia")))
+# vector_map <- st_read("./spatial_files/canadian_arctic_basemap.gpkg")
+# ggplot() +
+#   annotation_map_tile(type = "esri.world_imagery") +  # Add baselayer
+#   geom_sf(data = vector_map, fill = "lightblue", color = "black") +
+#   geom_sf(data = proj.pnts, aes(color = factor(ProjectID)), size = 6) +
+#   #geom_text(data = points_df, aes(x = lon, y = lat, label = PlotNumber), vjust = -1) +
+#   theme_minimal() +
+#   theme(legend.position = "none")
+
+```
+#### Gould & Reynolds Hood River (NU) project (363 plots).
+
+Plots collect along the Hood River in Nunavut by Gould and Reynolds in 1994-95 and published in JVS 1999 *Plant communities and landscape diversity along a Canadian Arctic river*. Original import with no-georeferencing and some data errors. Update to plot numbering, site location, georeferencing and vegetation cover values. The supplied environmental data files have plot numbering that do not align with the numbering in the vegetation data and requires further investigation.
+
+```{r project plotsGould}
+#| fig-cap: "Gould & Reynolds 1999 Hood River project"
+#| out-width: "90%"
+##| fig-asp: 0.618
+proj.pnts <- pnts_sf %>% filter(ProjectID == "Gould99_HoodRiver")
 
 mapview::mapView(proj.pnts,   cex = 6, legend = F, 
                  label = proj.pnts$PlotNumber, zcol = "ProjectID", 
@@ -307,10 +347,11 @@ mapview::mapView(proj.pnts,   cex = 6, legend = F,
                  label = proj.pnts$PlotNumber, zcol = "ProjectID", 
                  map.types = "OpenTopoMap")
 ```
+### Provincial Government Mapping Projects
 
-### Yukon ELC Mapping and Classification
+#### Yukon ELC Mapping and Classification
 
-The Yukon arctic region is the most intensely sampled arctic region in Canada, with much of the historic focus on the western portion in Ivvavik national park. Nadelel Flynn of the Yukon Ecological Land Classification coordinated a field sampling project in 2015 sample the undersampled eastern portions of the region in preparation for development of Yukon arctic fieldguide.
+The Yukon arctic region is the most intensely sampled arctic region in Canada, with much of the historic focus on the western portion in Ivvavik national park. Nadelle Flynn of the Yukon Ecological Land Classification coordinated a field sampling project in 2015 sample the under-sampled eastern portions of the region in preparation for development of Yukon arctic fieldguide.
 
 ```{r project plotsYK}
 #| fig-cap: "Yukon ELC North Slope classification project"
@@ -324,6 +365,25 @@ mapview::mapView(proj.pnts,   cex = 6, legend = F,
                  map.types = "OpenTopoMap")
 ```
 
+#### Quebec arctic classification project (698 plots).
+
+Frederic Poisson of the Quebec Ministry of Environment has provided digital data for 698 plot collected between 2011-2019 in Subzones D and E or northern Quebec. Sampling was relatively comprehensive for this distinct region of the Canadian arctic. Ecosystem types may match with ecosystems from the Torngats NP.
+
+
+```{r plots QC}
+#| fig-cap: "Quebec arctic classification project"
+#| out-width: "90%"
+
+QC.projects <- pnts_sf |> filter(startsWith(ProjectID, "QC_")) |>  pull(ProjectID)
+QC.projects <- unique(QC.projects)
+proj.pnts <- pnts_sf |> filter(ProjectID %in% QC.projects)
+
+mapview::mapView(proj.pnts,   cex = 6, legend = F, 
+                 label = proj.pnts$PlotNumber, zcol = "ProjectID", 
+                 map.types = "OpenTopoMap")
+
+```
+
 ### Additional missing data or known projects with relevant data
 
 #### Ivvavik NP mapping 2010 (62 plots)
@@ -333,10 +393,6 @@ Missing site and location data for the 2010 project. Missing data is primarily s
 #### Aulavik NP mapping 2011 (101 plots)
 
 Missing site and location data for the 2011 project.. Data entry from S. Ponomorenko field cards?
-
-#### Quebec arctic classification project (\~450 plots).
-
-Frederic Poisson of the Quebec ministry of environment has been contacted about inclusion of the dataset. This would be a relatively comprehensive dataset covering at large and likely distinct region of the Canadian arctic. Ecosystem types may match with ecosytem types from the Torngats NP.
 
 #### Back River Road project (\~500 plots).
 
@@ -350,16 +406,38 @@ A new research project with plots from northern Quebec to Ellesmere island. Mayb
 
 From a mapping project undertaken by Serguei Ponomorenka for Parks Canada. No digital files or scanned cards yet available. SP is searching the archives for original cards.
 
-### Summary of AVA_Canada in 2024
+### AVA_Canada Plots
 
-The AVA-Canada 2024 now contains 8961 plots well distributed across Canada.
-
-```{r build map file}
-#| fig-cap: "Distribution of all AVA-Canada Plots" 
+The AVA-Canada 2024 has 8783 plots assigned to CAVM subzone and CASBEC regions.
+```{r plot count}
+#| tbl-cap: "Count of plots assigned to CAVM subzone and CASBEC Zone unit" 
 #| out-width: "90%" 
 ##| fig-asp: 0.618   
-#  #    
+#  #
+# count PlotNumber by Zone and Subzone from plot.env
+plot.count <- plot.env %>% group_by(Zone, SubZone) %>% mutate(n = n())  %>% select(Zone, SubZone, n) %>% arrange(Zone, SubZone) %>% distinct() %>%
+  filter(!is.na(Zone), !is.na(SubZone), !Zone %in% c("SARC", "SUS", "SUW"), !Zone == "C+") %>% ungroup %>%
+  pivot_wider(names_from = Zone, values_from = n, values_fill = 0) %>%
+  mutate(Total = rowSums(.[,2:ncol(.)])) %>% arrange(SubZone)
+# Calculate column totals
+column_totals <- plot.count %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  mutate(SubZone = "Total")
+# Bind the totals row to the original data frame
+plot.count <- bind_rows(plot.count, column_totals)
 
+# Arrange to keep the "Total" row at the bottom
+plot.count <- plot.count %>%
+  arrange(match(SubZone, c(unique(plot.count$SubZone), "Total")))
+plot.count[plot.count == 0] <- NA
+
+gt(plot.count) 
+
+
+```
+
+
+```{r build map file}
 #mapview::mapviewOptions(platform = "mapdeck") 
 # mapview::mapviewOptions(default = TRUE) reds = colorBin(palette = "Reds", domain = NULL) 
 mapview::mapView(pnts_sf, cex = 6, legend = F,  label = pnts_sf$ProjectID, zcol = "ProjectID", map.types = "OpenTopoMap")
@@ -421,12 +499,13 @@ ggplot(vegDatareduced,aes(x=reorder(Species, -n), y=n))+
 
 ```
 
-## R-shiny AVA_Canada
+## Access to AVA_Canada through R-shiny
 
-A shiny app was developed for displaying and downloading data from the AVA_Canada.
+An R-shiny app was developed to test a method for displaying and downloading data from the AVA_Canada.
 
 <https://becweb.shinyapps.io/AVA-Canada/>.
 
 ![Screen shot of the shiny app for AVA-Canada plot data](images/ShinyIO_screenshot.jpg)
 
-The shiny app is hosted on shiny.io where the data is stored as compact RDS files.
+The shiny app is currently hosted on shiny.io where the data is stored in compact RDS file format.
+Intention is to allow download of the data in different formats for the full dataset or for a subset of the data. 

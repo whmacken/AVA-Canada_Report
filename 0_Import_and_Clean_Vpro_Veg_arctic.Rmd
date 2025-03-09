@@ -8,6 +8,10 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 require(tidyverse)
+library(ggplot2)
+require(mapview)
+require(sf)
+require(stringr)
 require(DBI) #loads odbc as well
 require(data.table)
 source("./_functions/update_taxa.R")
@@ -28,12 +32,12 @@ The final table should be re-imported into the Vpro BECMaster database
 
 
 ```{r import data}
- becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2024.accdb;")
+ becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2025.accdb;")
 
 
-plot.env <- dbReadTable(becmaster, "AVACanada2024_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
-plot.info <- dbReadTable(becmaster, "AVACanada2024_Admin")
-plot.veg <- dbReadTable(becmaster, "AVACanada2024_Veg") 
+plot.env <- dbReadTable(becmaster, "AVA_CANADA_2025_Env") %>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
+plot.info <- dbReadTable(becmaster, "AVA_CANADA_2025_Admin")
+plot.veg <- dbReadTable(becmaster, "AVA_CANADA_2025_Veg") 
 dbDisconnect(becmaster)
 
 sppmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/ArcticSpeciesInfo/NationalSpeciesLibrary.accdb;")
@@ -44,7 +48,14 @@ vascan <- dbReadTable(sppmaster, "Vascan_Taxa_v37_11")
 arctic  <- dbReadTable(sppmaster, "ArcticSpecies")
 
 dbDisconnect(sppmaster)
+missing.cover <- plot.veg %>% filter(is.na(Cover1) & is.na(Cover2) & is.na(Cover3) & is.na(Cover4) & is.na(Cover5) & is.na(Cover6) & is.na(Cover7) & is.na(TotalA) & is.na(TotalB) & is.na(Cover5a)& is.na(Cover5b)& is.na(Cover5c))
+missed.spp <- missing.cover %>% select(Species) %>% distinct
 
+missing.totB <- plot.veg %>% filter(is.na(TotalB) & c(!is.na(Cover4) | !is.na(Cover5) | !is.na(Cover5a)| !is.na(Cover5b)| !is.na(Cover5c)))
+missing.totB <- missing.totB %>% rowwise %>% mutate(TotalB = sum(Cover4, Cover5, Cover5a, Cover5b, Cover5c, na.rm = T))
+ becmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/AVACanada2025.accdb;")
+ dbWriteTable(becmaster, "update_totalb", missing.totB, overwrite = T, batch_rows = 1)
+ dbDisconnect(becmaster)
 # sppmaster2 <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/ArcticSpeciesInfo/NationalSpeciesLibrary.accdb;")
 # taxon.all2  <- dbReadTable(sppmaster2, "PASL_Species2019")
 # dbDisconnect(sppmaster2)
@@ -55,11 +66,11 @@ dbDisconnect(sppmaster3)
 #taxon.all <- fread("D:/CommonTables/SpeciesMaster/SpeciesMaster01Dec2020.csv", header = T, stringsAsFactors = F, strip.white = T)
 #taxon.info2 <- taxon.all1  %>% mutate(ScientificName = FullTaxaName)#%>% filter(SYNONYM == "FALSE")
 taxon.info <- taxon.all %>% filter(Codetype == "U" | Codetype == "D") %>% dplyr::select(-ID)%>% mutate(Species = Code)
-#vascan.info <- vascan %>% mutate(ScientificName = ifelse(taxonRank == "genus", paste0(genus, " spp."), 
-                # ifelse(taxonRank == "species", paste0(genus, " ", specificEpithet), 
-                # ifelse(taxonRank == "subspecies", paste0(genus, " ", specificEpithet, " ssp. ", infraspecificEpithet),
-                # ifelse(taxonRank == "variety", paste0(genus, " ", specificEpithet, " var. ", infraspecificEpithet),
-                # ifelse(taxonRank == "family", family, NA))))))
+vascan.info <- vascan %>% mutate(ScientificName = ifelse(taxonRank == "genus", paste0(genus, " spp."), 
+                ifelse(taxonRank == "species", paste0(genus, " ", specificEpithet),
+                ifelse(taxonRank == "subspecies", paste0(genus, " ", specificEpithet, " ssp. ", infraspecificEpithet),
+                ifelse(taxonRank == "variety", paste0(genus, " ", specificEpithet, " var. ", infraspecificEpithet),
+                ifelse(taxonRank == "family", family, NA))))))
 
 ## only currently accepted codes
 taxon.excluded <- taxon.all %>% filter(Codetype == c("X")) %>% dplyr::select(-ID) %>% mutate(Species = Code)
@@ -81,7 +92,70 @@ bliss.wide <- bliss %>% pivot_wider(id_cols = c("Species", "ScientificName", "Li
 fwrite(bliss.wide, "blissPlantProduction.csv")
 
 ```
+## import Quebec data
+```{r}
+quebecmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/Quebec2025.accdb;")
+plot.id <- dbReadTable(quebecmaster, "Quebec_2025_ArcticPlotsID")
+quebec.raw <- dbReadTable(quebecmaster,"Quebec_2025_ArcticPlots")
+dbDisconnect(quebecmaster)
 
+quebec.env <- quebec.raw %>% select(PlotNumber, NUM_PARC, Longitude, Latitude, Elev, campagne, GR_HABITAT, TYPE_HABITAT)#, QUALIF_PH, QUALIF_DR, QUALIF_MI, SNAME_PRELIM)  %>% distinct 
+quebec.env <- left_join(quebec.env, plot.id)%>% mutate(Longitude = ifelse(Longitude<0, Longitude, 0-Longitude))
+
+quebec.veg <- quebec.raw %>% select(PlotNumber, NOM_ESP, COUVERT) %>% mutate(NOM_ESP = str_replace(NOM_ESP, " sp.", " spp."))
+quebec.veg <- quebec.veg %>% mutate(NOM_ESP= str_replace(NOM_ESP,  "subsp.", "ssp."))
+setDT(quebec.veg)[setDT(taxon.all), `:=` ("spp" = Code, "layer" = Lifeform), on = c("NOM_ESP" = "ScientificName")]
+# missing <- quebec.veg %>% filter(is.na(spp)) %>% select(NOM_ESP, spp) %>% distinct
+# fwrite(missing, "./out_data/missing_QC_spp.csv")
+spp.fixed <- fread("./out_data/missing_QC_spp_fixed.csv") %>% filter(!newspp == "")
+setDT(quebec.veg)[setDT(spp.fixed), "spp" := newspp, on = c("NOM_ESP" = "NOM_ESP")]
+setDT(quebec.veg)[setDT(taxon.info), `:=` ("layer" = Lifeform), on = c("spp" = "Code")]
+ # missing <- quebec.veg %>% filter(is.na(spp)) %>% select(NOM_ESP, spp) %>% distinct
+ # missingcodes <- anti_join(quebec.veg, taxon.info, by = c("spp" = "Code")) %>% select(NOM_ESP, spp) %>% distinct
+
+quebec.veg <- quebec.veg %>% mutate(Cover = as.numeric(COUVERT), Species = spp, Layer = as.character(layer)) %>% select(PlotNumber, Species, Cover, Layer)
+xx <- quebec.veg %>% filter(quebec.veg$Cover == 51)
+#recode Cover 1 = 0.2, 2 = 1.1, 3 = 6, 4 = 16, 5 = 26, 6 = 51, 7 = 76, 9 = .1, -99 = .1
+quebec.veg$Cover <- ifelse(quebec.veg$Cover == 1, 0.5, 
+                           ifelse(quebec.veg$Cover == 2, 2.5, 
+                                  ifelse(quebec.veg$Cover == 3, 11, 
+                                         ifelse(quebec.veg$Cover == 4, 18, 
+                                                ifelse(quebec.veg$Cover == 5, 38, 
+                                                       ifelse(quebec.veg$Cover == 6, 63, 
+                                                              ifelse(quebec.veg$Cover == 7, 88, 
+                                                                     ifelse(quebec.veg$Cover == 9, 0.1, 
+                                                                            ifelse(quebec.veg$Cover == -99, 0.1, quebec.veg$Cover)))))))))
+duplicates <- quebec.veg[duplicated(quebec.veg) | duplicated(quebec.veg, fromLast = TRUE)]
+quebec.veg2 <- quebec.veg %>% distinct(PlotNumber, Species, Layer, .keep_all = TRUE)
+#quebec.veg.wide[quebec.veg.wide == 0] <- NA
+## wide format
+quebec.veg.wide <- quebec.veg2 %>% pivot_wider(id_cols = c("PlotNumber", "Species"), names_from = "Layer", values_from = "Cover")
+# convert 0 to NA
+
+
+#quebec.veg.wide <- quebec.veg %>% pivot_wider(id_cols = c("PlotNumber", "Species"), names_from = "Layer", values_from = "Cover") %>%  mutate(across(where(is.numeric), round, 1)) %>% data.frame
+
+quebecmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Vpro64_Data_Arctic/Quebec2025.accdb;")
+dbWriteTable(quebecmaster, "Quebec_2025_vegdata_long", quebec.veg2, overwrite=TRUE, batch_rows = 1)
+dbDisconnect(quebecmaster)
+
+quebec.loc <- quebec.raw %>% select(PlotNumber, Longitude, Latitude, Elev) %>% distinct 
+fwrite(quebec.loc, "D:/GitHub/CanadianArctic_BGCMap/TrainingPts/Quebec_Plots_2025.csv")
+pnts_sf <- st_as_sf(quebec.loc, coords=c("Longitude", "Latitude"), crs = 4326) %>% st_transform(pcrs = 3005)
+mapview::mapView(pnts_sf,   cex = 6, legend = F, 
+                 label = pnts_sf$PlotNumber, 
+                 map.types = "OpenTopoMap")
+#quebec.arctic <- fread("D:/GitHub/CanadianArctic_BGCMap/TrainingPts/Quebec_ArcticPlotID_2025_2.csv") ## generated from QGIS overlay
+# quebec.arctic.raw <- quebec.raw %>% filter(NUM_PARC %in% quebec.arctic$NUM_PARC)
+# quebec.raw <- left_join(plot.id,quebec.raw)
+# 
+# #plot.id2 <- plot.id %>% mutate(PlotNumber = str_extract(NUM_PARC, "[^_]+")) %>% mutate(nchar=nchar(PlotNumber))
+# #plot.id <- fread("E:/Arctic/Quebec_data/PlotID_fixed.csv")
+# 
+# quebecmaster <- dbConnect(odbc::odbc(), .connection_string = "Driver={Microsoft Access Driver (*.mdb, *.accdb)}; DBQ=E:/Arctic/Quebec_data/Quebec_Ecodata_2025.accdb;")
+# dbWriteTable(quebecmaster, "Quebec_2025_ArcticPlots", quebec.raw, overwrite=TRUE, batch_rows = 1)
+# dbDisconnect(quebecmaster)
+```
 
 
 ```{r clean codes}
@@ -158,8 +232,8 @@ CAVA to PASL
 ```{r}
 ###add species names from National list
 plot.veg2 <- plot.veg %>% select(PlotNumber, Species) %>% left_join(taxon.info) %>% select(PlotNumber, ScientificName)
-PASL_missed <- anti_join(plot.veg2, taxon.info2) %>% count(ScientificName)
-PASL_has <- inner_join(plot.veg2, taxon.info2) %>% count(ScientificName)
+PASL_missed <- anti_join(plot.veg2, taxon.info) %>% count(ScientificName)
+PASL_has <- inner_join(plot.veg2, taxon.info) %>% count(ScientificName)
 
 plot.veg3 <- plot.veg %>% select(PlotNumber, Species) %>% left_join(taxon.info) %>% filter(Lifeform < 9 | Lifeform == 12) %>% select(PlotNumber, ScientificName)
 vascan_missed <- anti_join(plot.veg3, vascan.info) %>% count(ScientificName)
@@ -225,7 +299,7 @@ pc$Cover5 <- ifelse(!(is.na(pc$TotalB)) & rowSums (pc[, 12:21], na.rm=TRUE) == 0
 # onlytotA <- pc %>%
 #     mutate(Total = select(., c(Cover1, Cover2, Cover3)) %>% rowSums(na.rm = TRUE)) %>% select (PlotNumber,Species,Total, TotalA) %>% filter(Total == 0, !(is.na(TotalA)))
 # # pc[paste0(pc$PlotNumber,  pc$Species) %in% paste0(notot$PlotNumber, notot$Species),] <- 
-plot.veg <- pc %>% na_if(0)
+#plot.veg <- pc %>% na_if(0)
 veg_dups2 <- as.data.table(plot.veg) %>% dplyr::select(-Layer, -Collected, -Flag, -ID) %>% mutate(HeightB = as.numeric(HeightB)) #group_by(PlotNumber, Species) %>% filter(n()>1)
 plot.veg2  <- veg_dups2 [, lapply(.SD, sum, na.rm = TRUE), by = c("PlotNumber", "Species")]
 
@@ -257,7 +331,7 @@ fwrite(plot.veg5, "./clean_data/BECMaster_Veg_updates.csv")
 ##sum across Total A, TotalB, 6, 7, 
 veg_anal <- plot.veg4 %>% dplyr::select (PlotNumber, Species, TotalA, TotalB, Cover6, Cover7, Cover8, Cover9, Cover10)  %>%  #%>% replace(is.na(.), 0)
    mutate(Cover = rowSums(.[,3:9], na.rm = T))
-veg_anal <- veg_anal %>% left_join(taxon.info, by = "Species") %>% dplyr::select(PlotNumber, Species, Cover, Lifeform) %>% na_if(0)
+veg_anal <- veg_anal %>% left_join(taxon.info, by = "Species") %>% dplyr::select(PlotNumber, Species, Cover, Lifeform) #%>% na_if(0)
 fwrite(veg_anal, "./clean_data/BECMaster_VegR_clean.csv", row.names = FALSE, col.names = TRUE)
 ## left join to species list
 
